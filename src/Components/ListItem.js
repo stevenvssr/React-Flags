@@ -11,13 +11,13 @@ const ListItem = styled.div`
   color: white;
 
   &:hover {
-    border: 1px solid yellow;
+    border: 1px solid #ffb830;
+    background-color: rgba(0, 0, 0, 0.75);
   }
 
   & img {
     width: 100px;
     height: 70px;
-    border: 1px solid black;
     margin: 10px;
 
     &:hover {
