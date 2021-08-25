@@ -29,7 +29,7 @@ function App() {
       });
   }, []);
 
-  const handleButtonClick = (e) => {
+  const handleFormSubmit = (e) => {
     e.preventDefault();
     setIsError(false);
     fetch(`https://restcountries.eu/rest/v2/name/${country}`)
@@ -81,7 +81,7 @@ function App() {
       </Header>
       <Wrapper>
         <Form
-          onSubmit={handleButtonClick}
+          onSubmit={handleFormSubmit}
           style={{
             backgroundColor: "#11324D",
             padding: "20px",
@@ -107,7 +107,7 @@ function App() {
               onChange={(e) => setCountry(e.target.value)}
             />
           </Form.Group>
-          <Button>Search</Button>
+          <Button onClick={handleFormSubmit}>Search</Button>
           {isError && <span style={{ color: "red" }}> Country not found.</span>}
         </Form>
 
