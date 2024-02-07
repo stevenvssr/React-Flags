@@ -21,7 +21,7 @@ function App() {
   const handleClose = () => setShow(false);
 
   useEffect(() => {
-    fetch(`https://restcountries.eu/rest/v2/all`)
+    fetch(`https://restcountries.com/v3.1/all`)
       .then((response) => response.json())
       .then((data) => {
         setAll(data);
@@ -32,7 +32,7 @@ function App() {
   const handleFormSubmit = (e) => {
     e.preventDefault();
     setIsError(false);
-    fetch(`https://restcountries.eu/rest/v2/name/${country}`)
+    fetch(`https://restcountries.com/v3.1/name/${country}`)
       .then((response) => response.json())
       .then((data) => {
         if (data[0]) {
@@ -55,7 +55,7 @@ function App() {
   };
 
   const handleFlagClick = (e) => {
-    fetch(`https://restcountries.eu/rest/v2/name/${e.target.alt}`)
+    fetch(`https://restcountries.com/v3.1/name/${e.target.alt}`)
       .then((response) => response.json())
       .then((data) => {
         if (data[0]) {
