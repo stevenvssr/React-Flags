@@ -20,58 +20,93 @@ function App() {
 
   const handleClose = () => setShow(false);
 
+  // Fetch all countries on mount
   useEffect(() => {
-    fetch(`https://restcountries.eu/rest/v2/all`)
-      .then((response) => response.json())
+    fetch(
+      "https://restcountries.com/v3.1/all?fields=name,capital,flags,subregion,languages,currencies,population,cca3"
+    )
+      .then((res) => res.json())
       .then((data) => {
-        setAll(data);
-        setRegion(data);
-      });
+        const sorted = data.sort((a, b) =>
+          a.name.common.localeCompare(b.name.common)
+        );
+        setAll(sorted);
+        setRegion(sorted);
+      })
+      .catch((err) => console.error("Fetch failed:", err));
   }, []);
 
+  // Search by country name
   const handleFormSubmit = (e) => {
     e.preventDefault();
     setIsError(false);
-    fetch(`https://restcountries.eu/rest/v2/name/${country}`)
-      .then((response) => response.json())
+    fetch(
+      `https://restcountries.com/v3.1/name/${country}?fullText=true&fields=name,capital,flags,subregion,languages,currencies,population`
+    )
+      .then((res) => res.json())
       .then((data) => {
         if (data[0]) {
-          const { name, capital, flag, population, subregion } = data[0];
+          const c = data[0];
           setResult({
-            name,
-            capital,
-            flag,
-            population,
-            subregion,
-            language: data[0].languages[0].name || "unknown",
-            currency: data[0].currencies[0].name || "unknown",
+            name: c.name.common,
+            capital: c.capital ? c.capital[0] : "unknown",
+            flag: c.flags.png,
+            population: c.population,
+            subregion: c.subregion,
+            language: c.languages ? Object.values(c.languages)[0] : "unknown",
+            currency: c.currencies
+              ? Object.values(c.currencies)[0].name
+              : "unknown",
           });
           setShow(true);
           setCountry("");
         } else {
           setIsError(true);
         }
+      })
+      .catch(() => setIsError(true));
+  };
+
+  // Click on flag to show info
+  const handleFlagClick = (e) => {
+    const countryName = e.target.alt;
+    fetch(
+      `https://restcountries.com/v3.1/name/${countryName}?fullText=true&fields=name,capital,flags,subregion,languages,currencies,population`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data[0]) {
+          const c = data[0];
+          setResult({
+            name: c.name.common,
+            capital: c.capital ? c.capital[0] : "unknown",
+            flag: c.flags.png,
+            population: c.population,
+            subregion: c.subregion,
+            language: c.languages ? Object.values(c.languages)[0] : "unknown",
+            currency: c.currencies
+              ? Object.values(c.currencies)[0].name
+              : "unknown",
+          });
+          setShow(true);
+        }
       });
   };
 
-  const handleFlagClick = (e) => {
-    fetch(`https://restcountries.eu/rest/v2/name/${e.target.alt}`)
-      .then((response) => response.json())
-      .then((data) => {
-        if (data[0]) {
-          const { name, capital, flag, population, subregion } = data[0];
-          setResult({
-            name,
-            capital,
-            flag,
-            population,
-            subregion,
-            language: data[0].languages[0].name,
-            currency: data[0].currencies[0].name,
-          });
-        }
-      });
-    setShow(true);
+  // Filter countries by region
+  const filterByRegion = (regionName) => {
+    let filtered;
+    if (regionName === "All") {
+      filtered = all;
+    } else {
+      filtered = all.filter(
+        (c) => c.subregion && c.subregion.includes(regionName)
+      );
+    }
+    const sorted = filtered.sort((a, b) =>
+      a.name.common.localeCompare(b.name.common)
+    );
+    setRegion(sorted);
   };
 
   return (
@@ -91,12 +126,7 @@ function App() {
           }}
         >
           <Form.Group className="mb-3">
-            <Form.Label
-              htmlFor="country"
-              style={{
-                fontWeight: "bold",
-              }}
-            >
+            <Form.Label htmlFor="country" style={{ fontWeight: "bold" }}>
               Country :
             </Form.Label>
             <Form.Control
@@ -113,61 +143,34 @@ function App() {
 
         <br />
         <ButtonGrid>
-          <Button
-            onClick={() => {
-              const copy = [...all];
-              setRegion(copy.filter((c) => c.subregion.includes("Asia")));
-            }}
-            variant="warning"
-          >
-            Asia
-          </Button>
-          <Button
-            onClick={() => {
-              const copy = [...all];
-              setRegion(copy.filter((c) => c.subregion.includes("Europe")));
-            }}
-            variant="success"
-          >
-            Europe
-          </Button>
-          <Button
-            onClick={() => {
-              const copy = [...all];
-              setRegion(copy.filter((c) => c.subregion.includes("Australia")));
-            }}
-            variant="white"
-            style={{ border: "1px solid black", backgroundColor: "white" }}
-          >
-            Oceania
-          </Button>
-          <Button
-            onClick={() => {
-              const copy = [...all];
-              setRegion(copy.filter((c) => c.subregion.includes("Africa")));
-            }}
-            variant="danger"
-          >
-            Africa
-          </Button>
-          <Button
-            onClick={() => {
-              const copy = [...all];
-              setRegion(copy.filter((c) => c.subregion.includes("America")));
-            }}
-            variant="dark"
-          >
-            America
-          </Button>
-          <Button
-            onClick={() => {
-              const copy = [...all];
-              setRegion(copy);
-            }}
-            variant="info"
-          >
-            All
-          </Button>
+          {["Asia", "Europe", "Australia", "Africa", "America", "All"].map(
+            (regionName) => (
+              <Button
+                key={regionName}
+                onClick={() => filterByRegion(regionName)}
+                variant={
+                  regionName === "Asia"
+                    ? "warning"
+                    : regionName === "Europe"
+                    ? "success"
+                    : regionName === "Australia"
+                    ? "white"
+                    : regionName === "Africa"
+                    ? "danger"
+                    : regionName === "America"
+                    ? "dark"
+                    : "info"
+                }
+                style={
+                  regionName === "Australia"
+                    ? { border: "1px solid black", backgroundColor: "white" }
+                    : {}
+                }
+              >
+                {regionName}
+              </Button>
+            )
+          )}
         </ButtonGrid>
         <br />
 
@@ -204,18 +207,17 @@ function App() {
         )}
 
         <AllFlags>
-          {region.map((country) => {
-            return (
+          {region.length > 0 &&
+            region.map((country) => (
               <ListItem
-                key={country.numericCode}
-                value={country.name}
+                key={country.cca3}
+                value={country.name.common}
                 onClick={handleFlagClick}
               >
-                <img src={country.flag} alt={country.name} />
-                <span>{country.name}</span>
+                <img src={country.flags.png} alt={country.name.common} />
+                <span>{country.name.common}</span>
               </ListItem>
-            );
-          })}
+            ))}
         </AllFlags>
       </Wrapper>
     </>
