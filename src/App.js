@@ -14,13 +14,13 @@ function App() {
   const [country, setCountry] = useState("");
   const [result, setResult] = useState({});
   const [all, setAll] = useState([]);
+  const [region, setRegion] = useState([]);
   const [isError, setIsError] = useState(false);
   const [show, setShow] = useState(false);
-  const [region, setRegion] = useState([]);
 
   const handleClose = () => setShow(false);
 
-  // Fetch all countries on mount
+  // Fetch all countries on mount and sort alphabetically
   useEffect(() => {
     fetch(
       "https://restcountries.com/v3.1/all?fields=name,capital,flags,subregion,languages,currencies,population,cca3"
@@ -93,7 +93,7 @@ function App() {
       });
   };
 
-  // Filter countries by region
+  // Filter countries by region and sort alphabetically
   const filterByRegion = (regionName) => {
     let filtered;
     if (regionName === "All") {
