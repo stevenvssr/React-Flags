@@ -1,3 +1,25 @@
 body {
-  background-image: url("https://images.unsplash.com/photo-1502920514313-52581002a659?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=1347&q=80");
+  /* Premium Dark Gradient Background */
+  background: linear-gradient(135deg, #0e121f 0%, #1a1e2b 100%);
+  color: #f0f0f0; /* Ensure default text color is light */
+
+  /* Ensure it covers the whole viewport */
+  min-height: 100vh;
+  margin: 0; /* Remove default body margin */
+  font-family: "Inter", sans-serif; /* Consider a modern font like Inter from Google Fonts */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(
+    circle at top left,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: -1;
 }

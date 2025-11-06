@@ -1,223 +1,321 @@
 import "./App.css";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+
+// Components
+import { HeaderWrapper, Title, FlagText } from "./Components/Header";
 import Wrapper from "./Components/Wrapper";
-import Header from "./Components/Header";
-import Flag from "./Components/Flag";
-import Info from "./Components/Info";
 import ListItem from "./Components/ListItem";
 import AllFlags from "./Components/AllFlags";
-import { Button, Form, Modal } from "react-bootstrap";
-import { FcGlobe } from "react-icons/fc";
 import ButtonGrid from "./Components/ButtonGrid";
+import FilterButton from "./Components/FilterButton";
+import CountryModal from "./Components/CountryModal";
+import {
+  SuggestionContainer,
+  SuggestionItem,
+} from "./Components/SuggestionList";
+
+// Dependencies
+import { Button, Form } from "react-bootstrap";
+import { FcGlobe } from "react-icons/fc";
+
+// --- API Endpoints ---
+const ALL_COUNTRIES_URL =
+  "https://restcountries.com/v3.1/all?fields=name,capital,flags,subregion,languages,currencies,population,cca3,region";
+const SINGLE_COUNTRY_URL = "https://restcountries.com/v3.1/name/";
+
+// --- Helper: Format country data consistently ---
+const formatCountryData = (c) => ({
+  name: c.name.common,
+  capital: c.capital?.[0] || "unknown",
+  flag: c.flags.png,
+  population: c.population,
+  subregion: c.subregion,
+  language: Object.values(c.languages || {})[0] || "unknown",
+  currency: Object.values(c.currencies || {})[0]?.name || "unknown",
+});
 
 function App() {
-  const [country, setCountry] = useState("");
-  const [result, setResult] = useState({});
-  const [all, setAll] = useState([]);
-  const [region, setRegion] = useState([]);
+  // Data state
+  const [allCountries, setAllCountries] = useState([]);
+  const [displayedCountries, setDisplayedCountries] = useState([]);
+
+  // Search & suggestions
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  // Modal
+  const [modalResult, setModalResult] = useState({});
+  const [showModal, setShowModal] = useState(false);
+
+  // Errors & region
   const [isError, setIsError] = useState(false);
-  const [show, setShow] = useState(false);
+  const [activeRegion, setActiveRegion] = useState("All");
 
-  const handleClose = () => setShow(false);
+  const inputRef = useRef(null);
 
-  // Fetch all countries on mount and sort alphabetically
+  const handleCloseModal = () => setShowModal(false);
+
+  // 1. Fetch all countries on mount
   useEffect(() => {
-    fetch(
-      "https://restcountries.com/v3.1/all?fields=name,capital,flags,subregion,languages,currencies,population,cca3"
-    )
+    fetch(ALL_COUNTRIES_URL)
       .then((res) => res.json())
       .then((data) => {
         const sorted = data.sort((a, b) =>
           a.name.common.localeCompare(b.name.common)
         );
-        setAll(sorted);
-        setRegion(sorted);
+        setAllCountries(sorted);
+        setDisplayedCountries(sorted);
       })
       .catch((err) => console.error("Fetch failed:", err));
   }, []);
 
-  // Search by country name
+  // 2. Update suggestions on input
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    setIsError(false);
+    setFocusedIndex(-1);
+
+    if (value.length > 1) {
+      const filtered = allCountries
+        .filter((c) =>
+          c.name.common.toLowerCase().startsWith(value.toLowerCase())
+        )
+        .map((c) => c.name.common)
+        .slice(0, 8);
+      setSuggestions(filtered);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  // 3. Click suggestion
+  const handleSuggestionClick = (name) => {
+    setSearchQuery(name);
+    setSuggestions([]);
+    setFocusedIndex(-1);
+    processSearch(name);
+  };
+
+  // 4. Search processing
+  const processSearch = async (searchName) => {
+    setIsError(false);
+    setSuggestions([]);
+
+    if (!searchName) return;
+
+    const exactMatch = allCountries.find(
+      (c) => c.name.common.toLowerCase() === searchName.toLowerCase()
+    );
+
+    if (exactMatch) {
+      setModalResult(formatCountryData(exactMatch));
+      setShowModal(true);
+      setSearchQuery("");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${SINGLE_COUNTRY_URL}${searchName}?fullText=true`
+      );
+      const data = await res.json();
+      if (!data[0]) throw new Error("Country not found");
+      setModalResult(formatCountryData(data[0]));
+      setShowModal(true);
+      setSearchQuery("");
+    } catch {
+      setIsError(true);
+    }
+  };
+
+  // 5. Handle keyboard navigation
+  // --- KeyDown Handler for Input (FIX APPLIED HERE) ---
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedIndex((prev) => (prev + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedIndex(
+        (prev) => (prev - 1 + suggestions.length) % suggestions.length
+      );
+    } else if (e.key === "Enter") {
+      // FIX: Stop propagation to prevent the modal's document listener
+      // from instantly closing the newly opened modal.
+      e.stopPropagation();
+      e.preventDefault(); // Prevent form submission
+
+      let selected;
+      if (focusedIndex >= 0) {
+        // 1. A suggestion is actively highlighted using arrow keys
+        selected = suggestions[focusedIndex];
+      } else if (suggestions.length > 0) {
+        // 2. No suggestion is highlighted, but suggestions exist: use the top suggestion
+        selected = suggestions[0];
+      } else {
+        // 3. No suggestions visible: search the raw input text
+        selected = searchQuery;
+      }
+
+      setSearchQuery(selected);
+      setSuggestions([]);
+      setFocusedIndex(-1);
+      processSearch(selected);
+    } else if (e.key === "Escape") {
+      setSuggestions([]);
+      setFocusedIndex(-1);
+    }
+  };
+
+  // --- Form Submit Handler ---
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    setIsError(false);
-    fetch(
-      `https://restcountries.com/v3.1/name/${country}?fullText=true&fields=name,capital,flags,subregion,languages,currencies,population`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data[0]) {
-          const c = data[0];
-          setResult({
-            name: c.name.common,
-            capital: c.capital ? c.capital[0] : "unknown",
-            flag: c.flags.png,
-            population: c.population,
-            subregion: c.subregion,
-            language: c.languages ? Object.values(c.languages)[0] : "unknown",
-            currency: c.currencies
-              ? Object.values(c.currencies)[0].name
-              : "unknown",
-          });
-          setShow(true);
-          setCountry("");
-        } else {
-          setIsError(true);
-        }
-      })
-      .catch(() => setIsError(true));
+    processSearch(searchQuery);
+    setSuggestions([]);
+    setFocusedIndex(-1);
   };
 
-  // Click on flag to show info
-  const handleFlagClick = (e) => {
-    const countryName = e.target.alt;
-    fetch(
-      `https://restcountries.com/v3.1/name/${countryName}?fullText=true&fields=name,capital,flags,subregion,languages,currencies,population`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data[0]) {
-          const c = data[0];
-          setResult({
-            name: c.name.common,
-            capital: c.capital ? c.capital[0] : "unknown",
-            flag: c.flags.png,
-            population: c.population,
-            subregion: c.subregion,
-            language: c.languages ? Object.values(c.languages)[0] : "unknown",
-            currency: c.currencies
-              ? Object.values(c.currencies)[0].name
-              : "unknown",
-          });
-          setShow(true);
-        }
-      });
-  };
-
-  // Filter countries by region and sort alphabetically
-  const filterByRegion = (regionName) => {
-    let filtered;
-    if (regionName === "All") {
-      filtered = all;
-    } else {
-      filtered = all.filter(
-        (c) => c.subregion && c.subregion.includes(regionName)
-      );
+  // 7. Flag click
+  const handleFlagClick = (cca3) => {
+    const clickedCountry = allCountries.find((c) => c.cca3 === cca3);
+    if (clickedCountry) {
+      setModalResult(formatCountryData(clickedCountry));
+      setShowModal(true);
     }
-    const sorted = filtered.sort((a, b) =>
-      a.name.common.localeCompare(b.name.common)
+  };
+
+  // 8. Filter by region
+  const filterByRegion = (regionName) => {
+    setActiveRegion(regionName);
+    if (regionName === "All") {
+      setDisplayedCountries(allCountries);
+      return;
+    }
+    const filtered = allCountries.filter(
+      (c) => c.region && c.region.toLowerCase() === regionName.toLowerCase()
     );
-    setRegion(sorted);
+    setDisplayedCountries(filtered);
   };
 
   return (
     <>
-      <Header>
-        Country Info App <FcGlobe />
-      </Header>
+      <HeaderWrapper>
+        <Title>
+          <FlagText>Fun with Flags</FlagText>
+          <FcGlobe style={{ fontSize: "2.5rem" }} />
+        </Title>
+      </HeaderWrapper>
+
       <Wrapper>
+        {/* Search Form */}
         <Form
           onSubmit={handleFormSubmit}
           style={{
-            backgroundColor: "#11324D",
-            padding: "20px",
-            width: "50vw",
+            background: "linear-gradient(145deg, #181c2e, #0c101d)",
+            padding: "25px",
+            width: "100%",
+            maxWidth: "550px",
             borderRadius: "10px",
-            color: "white",
+            color: "#f0f0f0",
+            boxShadow: "0 8px 15px rgba(0,0,0,0.3)",
           }}
         >
-          <Form.Group className="mb-3">
+          <Form.Group className="mb-3" style={{ position: "relative" }}>
             <Form.Label htmlFor="country" style={{ fontWeight: "bold" }}>
-              Country :
+              Search by Country:
             </Form.Label>
             <Form.Control
               id="country"
               type="text"
-              placeholder="Enter country"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
+              placeholder="Enter full country name..."
+              value={searchQuery}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              ref={inputRef}
+              style={{
+                backgroundColor: "#0c101d",
+                color: "#f0f0f0",
+                border: "1px solid #ffb830",
+                boxShadow: "0 0 5px rgba(255, 184, 48, 0.5)",
+              }}
             />
+
+            {suggestions.length > 0 && (
+              <SuggestionContainer>
+                {suggestions.map((name, index) => (
+                  <SuggestionItem
+                    key={name}
+                    onClick={() => handleSuggestionClick(name)}
+                    className={index === focusedIndex ? "focused" : ""}
+                  >
+                    {name}
+                  </SuggestionItem>
+                ))}
+              </SuggestionContainer>
+            )}
           </Form.Group>
-          <Button onClick={handleFormSubmit}>Search</Button>
-          {isError && <span style={{ color: "red" }}> Country not found.</span>}
+          <Button onClick={handleFormSubmit} variant="warning">
+            Search
+          </Button>
+          {isError && (
+            <span style={{ color: "#ff8c8c", marginLeft: "10px" }}>
+              Country not found.
+            </span>
+          )}
         </Form>
 
         <br />
+
+        {/* Region Buttons */}
         <ButtonGrid>
-          {["Asia", "Europe", "Australia", "Africa", "America", "All"].map(
+          {["Asia", "Europe", "Oceania", "Africa", "Americas", "All"].map(
             (regionName) => (
-              <Button
+              <FilterButton
                 key={regionName}
                 onClick={() => filterByRegion(regionName)}
-                variant={
-                  regionName === "Asia"
-                    ? "warning"
-                    : regionName === "Europe"
-                    ? "success"
-                    : regionName === "Australia"
-                    ? "white"
-                    : regionName === "Africa"
-                    ? "danger"
-                    : regionName === "America"
-                    ? "dark"
-                    : "info"
-                }
-                style={
-                  regionName === "Australia"
-                    ? { border: "1px solid black", backgroundColor: "white" }
-                    : {}
-                }
+                className={activeRegion === regionName ? "active" : ""}
               >
                 {regionName}
-              </Button>
+              </FilterButton>
             )
           )}
         </ButtonGrid>
         <br />
 
-        {result.population && (
-          <Modal show={show} onHide={handleClose}>
-            <Modal.Body
-              style={{
-                textAlign: "center",
-                backgroundColor: "#11324D",
-                color: "white",
-              }}
-            >
-              <Flag src={result.flag} />
-              <h1>{result.name}</h1>
-              <Info>
-                <li>Capital: {result.capital}</li>
-                <li>Language: {result.language}</li>
-                <li>
-                  Population:{" "}
-                  {result.population
-                    .toString()
-                    .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                </li>
-                <li>Subregion: {result.subregion}</li>
-                <li>Currency: {result.currency}</li>
-              </Info>
-            </Modal.Body>
-            <Modal.Footer style={{ backgroundColor: "#11324D" }}>
-              <Button variant="primary" onClick={handleClose}>
-                Close
-              </Button>
-            </Modal.Footer>
-          </Modal>
-        )}
+        {/* Modal */}
+        <CountryModal
+          show={showModal}
+          onClose={handleCloseModal}
+          result={modalResult}
+        />
 
+        {/* Flags Grid */}
         <AllFlags>
-          {region.length > 0 &&
-            region.map((country) => (
+          {displayedCountries.length > 0 ? (
+            displayedCountries.map((country) => (
               <ListItem
+                as="button"
                 key={country.cca3}
-                value={country.name.common}
-                onClick={handleFlagClick}
+                onClick={() => handleFlagClick(country.cca3)}
+                aria-label={`Show info for ${country.name.common}`}
               >
                 <img src={country.flags.png} alt={country.name.common} />
                 <span>{country.name.common}</span>
               </ListItem>
-            ))}
+            ))
+          ) : (
+            <p
+              style={{
+                color: "white",
+                gridColumn: "1 / -1",
+                textAlign: "center",
+              }}
+            >
+              No countries found for this region.
+            </p>
+          )}
         </AllFlags>
       </Wrapper>
     </>
